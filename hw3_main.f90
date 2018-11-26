@@ -27,7 +27,7 @@ program hw3_main
 
   allocate(fc_ave(nt+1),s(n,n,m))
 
-  call simulate2_f90(n,nt,m,s,fc_ave)
+  call simulate2_omp(n,nt,m,s,fc_ave)
 
 
   !load in python using fc_ave = np.loadtxt('fc_ave.txt')
