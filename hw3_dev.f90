@@ -16,7 +16,7 @@ module tribes
   integer :: numthreads
   real(kind=8) :: tr_b,tr_e,tr_g
 contains
-
+  
 !Simulate m trials of Cooperator vs. Mercenary competition using the parameters, tr_b and tr_e.
 !Input:
 ! n: defines n x n grid of villages
@@ -143,10 +143,14 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   integer, intent(in) :: n,nt,m
   integer, intent(out), dimension(n,n,m) :: s
   real(kind=8), intent(out), dimension(nt+1) :: fc_ave
-  integer :: i1,j1
+  integer :: i1,j1,i2
   real(kind=8), allocatable, dimension(:,:,:) :: r !random numbers
   !Add further variables as needed
-
+  real(kind=8) :: n2inv
+  integer, dimension(n,n,m) :: nb,nc
+  integer, dimension(n+2,n+2,m) :: s2
+  real(kind=8), dimension(n+2,n+2,m) :: f2, f2s2
+  real(kind=8), dimension(n,n,m) :: nbinv,a,f,p,pden
 
   !initial condition and r allocation (does not need to be parallelized)
   s=1
@@ -156,8 +160,82 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !------------------
 
   !Add code here
+  n2inv = 1.d0/dble(n*n)
+  nb = 8
+  s2 = 0
+  !$OMP parallel do
+  do i2 = 1,M
+    nb = 8
+    nb(1,2:n-1,i2) = 5
+    nb(n,2:n-1,i2) = 5
+    nb(2:n-1,1,i2) = 5
+    nb(2:n-1,n,i2) = 5
+    nb(1,1,i2) = 3
+    nb(1,n,i2) = 3
+    nb(n,1,i2) = 3
+    nb(n,n,i2) = 3
+  end do
+  !$OMP end parallel do
+  nbinv = 1.d0/nb
 
+  !---finished Problem setup---
 
+  !---Time marching---
+  !$OMP parallel do private(a,s,s2,nc,f2,f2s2,p,pden,R,fc_ave),reduction(+:f)
+  do i2 = 1,M
+    do i1 = 1,Nt
+      call random_number(r) !random numbers used to update s every time step
+
+      !Set up coefficients for fitness calculation in matrix, a
+      a(:,:,i2) = 1
+      where(s(:,:,i2)==0)
+        a(:,:,i2) = tr_b
+      end where
+
+      !Create s2 by adding boundary of zeros to s
+      s2(2:n+1,2:n+1,i2) = s(:,:,i2)
+
+      !Count number of C neighbours for each point
+      nc(:,:,i2) = s2(1:n,1:n,i2) + s2(1:n,2:n+1,i2) + s2(1:n,3:n+2,i2) + &
+           s2(2:n+1,1:n,i2)                  + s2(2:n+1,3:n+2,i2) + &
+           s2(3:n+2,1:n,i2)   + s2(3:n+2,2:n+1,i2)   + s2(3:n+2,3:n+2,i2)
+
+      !Calculate fitness matrix, f----
+      !We will have to use reduction
+      f(:,:,i2) = nc(:,:,i2)*a(:,:,i2)
+      where (s(:,:,i2)==0)
+        f(:,:,i2) = f(:,:,i2) + (nb(:,:,i2)-nc(:,:,i2))*tr_e
+      end where
+      f(:,:,i2) = f(:,:,i2)*s2(:,:,i2)
+      !------------------------------
+
+      !Calculate probability matrix, p----
+      f2(2:n+1,2:n+1,i2) = f(:,:,i2)
+      f2s2(:,:,i2) = f2(:,:,i2)*s2(:,:,i2)
+
+      !Total fitness of cooperators in community
+      p(:,:,i2) = f2s2(1:n,1:n,i2) + f2s2(1:n,2:n+1,i2) + f2s2(1:n,3:n+2,i2) + &
+             f2s2(2:n+1,1:n,i2) + f2s2(2:n+1,2:n+1,i2)  + f2s2(2:n+1,3:n+2,i2) + &
+            f2s2(3:n+2,1:n,i2)   + f2s2(3:n+2,2:n+1,i2)   + f2s2(3:n+2,3:n+2,i2)
+
+      !Total fitness of all members of community
+      pden(:,:,i2) = f2(1:n,1:n,i2) + f2(1:n,2:n+1,i2) + f2(1:n,3:n+2,i2) + &
+             f2(2:n+1,1:n,i2) + f2(2:n+1,2:n+1,i2)  + f2(2:n+1,3:n+2,i2) + &
+            f2(3:n+2,1:n,i2)   + f2(3:n+2,2:n+1,i2)   + f2(3:n+2,3:n+2,i2)
+
+      p(:,:,i2) = (p(:,:,i2)/pden(:,:,i2))*tr_g + 0.5d0*(1.d0-tr_g) !probability matrix
+      !--------------------------
+
+      !Set new affiliations based om probability matrix and random numbers stored in R
+      s(:,:,i2) = 0
+      where(R(:,:,i2)<=p(:,:,i2))
+        s(:,:,i2)=1
+      end where
+
+    end do
+    fc_ave(i1+1) = sum(s)*(n2inv/m)
+  end do
+  !$OMP end parallel do
   deallocate(r)
 end subroutine simulate2_omp
 
