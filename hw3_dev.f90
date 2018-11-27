@@ -169,9 +169,9 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
 
 
   !---Time marching---
-
     do i3 = 1,nt
-    !$OMP parallel do reduction(+:f,fc_ave)
+    !$ call omp_set_num_threads(4)
+    !$OMP parallel do
     do k = 1,m
       do i1 = 1,n
         do i2 = 1,n
@@ -193,29 +193,35 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
           nbinv(i1,i2,k) = 1.d0/nb(i1,i2,k)
         end do
       end do
+    end do
+    !$OMP end parallel do
   call random_number(r) !random numbers used to update s every time step
   !Set up coefficients for fitness calculation in matrix, a
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         a(i1,i2,k) = 1
-      end do
-    end do
-    do i1 = 1,n
-      do i2 = 1,n
         if(s(i1,i2,k)==0) then
           a(i1,i2,k) = tr_b
         end if
       end do
     end do
+  end do
+  !$OMP end parallel do
   !Create s2 by adding boundary of zeros to s
-
+  !$OMP parallel do
+  do k =1,m
     do i4 = 2,n+1
       do i5 = 2,n+1
         s2(i4,i5,k) = s(i4-1,i5-1,k) !Look at PARALLELIZATION for this
       end do
     end do
+  end do
+  !$OMP end parallel do
   !Count number of C neighbours for each point
-
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
           nc(i1,i2,k) = s2(i1,i2,k) + s2(i1,i2+1,k) + s2(i1,i2+2,k) + &
@@ -224,41 +230,57 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
                           !s2 needs to be global
       end do
     end do
+  end do
+  !$OMP end parallel do
   !Calculate fitness matrix, f----
   !We will have to use reduction
+  !$OMP parallel do reduction(+:f)
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         f(i1,i2,k) = nc(i1,i2,k)*a(i1,i2,k)
-      end do
-    end do
-    do i1 = 1,n
-      do i2 = 1,n
         if (s(i1,i2,k)==0) then
           f(i1,i2,k) = f(i1,i2,k) + (nb(i1,i2,k)-nc(i1,i2,k))*tr_e
         end if
       end do
     end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
           f(i1,i2,k) = f(i1,i2,k)*nbinv(i1,i2,k)
       end do
     end do
+  end do
+  !$OMP end parallel do
 
   !------------------------------
 
   !Calculate probability matrix, p----
+  !$OMP parallel do
+  do k = 1,m
     do i4 = 2,n+1
       do i5 = 2,n+1
         f2(i4,i5,k) = f(i4-1,i5-1,k)
       end do
     end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do
+  do k = 1,m
     do i8 = 1,n+2
       do i9 = 1,n+2
         f2s2(i8,i9,k) = f2(i8,i9,k)*s2(i8,i9,k)
       end do
     end do
+  end do
+  !$OMP end parallel do
 
   !Total fitness of cooperators in community
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
           p(i1,i2,k) = f2s2(i1,i2,k) + f2s2(i1,i2+1,k) + f2s2(i1,i2+2,k) + &
@@ -266,8 +288,12 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
                       f2s2(i1+2,i2,k) + f2s2(i1+2,i2+1,k) + f2s2(i1+2,i2+2,k)
       end do
     end do
+  end do
+  !$OMP end parallel do
 
   !Total fitness of all members of community
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
           pden(i1,i2,k) = f2(i1,i2,k) + f2(i1,i2+1,k) + f2(i1,i2+2,k) + &
@@ -275,18 +301,30 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
                           f2(i1+2,i2,k) + f2(i1+2,i2+1,k) + f2(i1+2,i2+2,k)
       end do
     end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         p(i1,i2,k) = (p(i1,i2,k)/pden(i1,i2,k))*tr_g + 0.5d0*(1.d0-tr_g) !probability matrix
       end do
     end do
+  end do
+  !$OMP end parallel do
   !--------------------------
   !Set new affiliations based om probability matrix and random numbers stored in R
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         s(i1,i2,k) = 0
       end do
     end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do
+  do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         if (R(i1,i2,k)<=p(i1,i2,k)) then
@@ -294,6 +332,10 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
         end if
       end do
     end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do reduction(+:fc_ave)
+  do k=1,m
     do i1 = 1,n
       do i2 = 1,n
         fc_ave(i3+1) = fc_ave(i3+1) + s(i1,i2,k)*(n2inv/m)
@@ -302,7 +344,7 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   end do
   !$OMP end parallel do
 end do
-
+deallocate(r)
 end subroutine simulate2_omp
 
 
