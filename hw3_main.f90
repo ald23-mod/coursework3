@@ -48,5 +48,8 @@ program hw3_main
   end do
   close(13)
 
+  deallocate(fc_ave)
+  deallocate(s)
+
 
 end program hw3_main

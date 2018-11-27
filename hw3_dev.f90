@@ -169,8 +169,9 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
 
 
   !---Time marching---
+
     do i3 = 1,nt
-    !$ call omp_set_num_threads(4)
+    !$ call omp_set_num_threads(numthreads)
     !$OMP parallel do
     do k = 1,m
       do i1 = 1,n
@@ -202,6 +203,10 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
     do i1 = 1,n
       do i2 = 1,n
         a(i1,i2,k) = 1
+      end do
+    end do
+    do i1 = 1,n
+      do i2 = 1,n
         if(s(i1,i2,k)==0) then
           a(i1,i2,k) = tr_b
         end if
@@ -234,11 +239,19 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !$OMP end parallel do
   !Calculate fitness matrix, f----
   !We will have to use reduction
-  !$OMP parallel do reduction(+:f)
+  !$OMP parallel do
   do k = 1,m
     do i1 = 1,n
       do i2 = 1,n
         f(i1,i2,k) = nc(i1,i2,k)*a(i1,i2,k)
+      end do
+    end do
+  end do
+  !$OMP end parallel do
+  !$OMP parallel do
+  do k = 1,m
+    do i1 = 1,n
+      do i2 = 1,n
         if (s(i1,i2,k)==0) then
           f(i1,i2,k) = f(i1,i2,k) + (nb(i1,i2,k)-nc(i1,i2,k))*tr_e
         end if
@@ -256,8 +269,8 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   end do
   !$OMP end parallel do
 
-  !------------------------------
 
+  !------------------------------
   !Calculate probability matrix, p----
   !$OMP parallel do
   do k = 1,m
@@ -277,7 +290,6 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
     end do
   end do
   !$OMP end parallel do
-
   !Total fitness of cooperators in community
   !$OMP parallel do
   do k = 1,m
@@ -345,7 +357,6 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !$OMP end parallel do
 end do
 deallocate(r)
+
 end subroutine simulate2_omp
-
-
 end module tribes
