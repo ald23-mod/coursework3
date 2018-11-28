@@ -1,9 +1,4 @@
 !M3C 2018 Homework 3
-!Ernest Bitkivskij
-!01258803
-
-
-
 !This module contains four module variables and two subroutines;
 !one of these routines must be developed for this assignment.
 !Module variables--
@@ -43,6 +38,13 @@ subroutine simulate2_f90(n,nt,m,s,fc_ave)
   real(kind=8), dimension(n,n,m) :: f,p,a,pden,nbinv
   real(kind=8), dimension(n+2,n+2,m) :: f2,f2s2
   real(kind=8), allocatable, dimension(:,:,:) :: r !random numbers
+  !timing variables
+  integer(kind=8) :: clock_t1,clock_t2,clock_rate
+  real(kind=8) :: cpu_t1,cpu_t2,clock_time
+
+  call system_clock(clock_t1)
+
+  call cpu_time(cpu_t1)
 
 
   !---Problem setup----
@@ -108,7 +110,7 @@ subroutine simulate2_f90(n,nt,m,s,fc_ave)
 
     !Total fitness of cooperators in community
     p = f2s2(1:n,1:n,:) + f2s2(1:n,2:n+1,:) + f2s2(1:n,3:n+2,:) + &
-          f2s2(2:n+1,1:n,:) + f2s2(2:n+1,2:n+1,:)  + f2s2(2:n+1,3:n+2,:) + &
+           f2s2(2:n+1,1:n,:) + f2s2(2:n+1,2:n+1,:)  + f2s2(2:n+1,3:n+2,:) + &
           f2s2(3:n+2,1:n,:)   + f2s2(3:n+2,2:n+1,:)   + f2s2(3:n+2,3:n+2,:)
 
     !Total fitness of all members of community
@@ -129,6 +131,10 @@ subroutine simulate2_f90(n,nt,m,s,fc_ave)
     fc_ave(i1+1) = sum(s)*(n2inv/m)
 
   end do
+  call cpu_time(cpu_t2)
+  print *, 'elapsed cpu time (seconds) =',cpu_t2-cpu_t1
+  call system_clock(clock_t2,clock_rate)
+  print *, 'elapsed wall time (seconds)= ', dble(clock_t2-clock_t1)/dble(clock_rate)
 
 end subroutine simulate2_f90
 
@@ -148,233 +154,168 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   integer, intent(in) :: n,nt,m
   integer, intent(out), dimension(n,n,m) :: s
   real(kind=8), intent(out), dimension(nt+1) :: fc_ave
-  integer :: i,j,k,l,t
+  integer :: k,i1,j1,i2,i3,i4,i5,i8,i9
   real(kind=8), allocatable, dimension(:,:,:) :: r !random numbers
-
+  !Add further variables as needed
   real(kind=8) :: n2inv
   integer, dimension(n,n,m) :: nb,nc
   integer, dimension(n+2,n+2,m) :: s2
   real(kind=8), dimension(n+2,n+2,m) :: f2, f2s2
-  real(kind=8), dimension(n,n,m):: nbinv,a,f,pden,p
+  real(kind=8), dimension(n,n,m) :: nbinv,a,f,pden,p
+  !timing variables
+  integer(kind=8) :: clock_t1,clock_t2,clock_rate
+  real(kind=8) :: cpu_t1,cpu_t2,clock_time
 
-  allocate(r(n,n,m))
+  call system_clock(clock_t1)
 
+  call cpu_time(cpu_t1)
+
+  !initial condition and r allocation (does not need to be parallelized)
   s=1
-  l = (n+1)/2
-  s(l,l,:) = 0
+  j1 = (n+1)/2
+  s(j1,j1,:) = 0
+  allocate(r(n,n,m))
+  !------------------
 
+  !Add code here
   n2inv = 1.d0/dble(n*n)
   fc_ave(1) = sum(s)*(n2inv/m)
   s2 = 0
   f2 = 0.d0
 
+  !---finished Problem setup---
 
-  do t=1,nt !Start the year loop
-    !$OMP parallel do
+
+  !---Time marching---
+
+    do i3 = 1,nt
+
+    !$OMP parallel do reduction(+:fc_ave)
     do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          nb(i,j,k) = 8
+      do i1 = 1,n
+        do i2 = 1,n
+          nb(i1,i2,k) = 8
         end do
+      end do
+      do i4 = 2,n-1
+        nb(1,i4,k) = 5
+        nb(n,i4,k) = 5
+        nb(i4,1,k) = 5
+        nb(i4,n,k) = 5
+      end do
+    nb(1,1,k) = 3
+    nb(1,n,k) = 3
+    nb(n,1,k) = 3
+    nb(n,n,k) = 3
+      do i1 = 1,n
+        do i2 = 1,n
+          nbinv(i1,i2,k) = 1.d0/nb(i1,i2,k)
+        end do
+      end do
+  call random_number(r) !random numbers used to update s every time step
+  !Set up coefficients for fitness calculation in matrix, a
+    do i1 = 1,n
+      do i2 = 1,n
+        a(i1,i2,k) = 1
+        if(s(i1,i2,k)==0) then
+          a(i1,i2,k) = tr_b
+        end if
       end do
     end do
-    !$OMP end parallel do
-
-    !$OMP parallel do
-    do k=1,m
-      do i = 2,n-1
-        nb(1,i,k) = 5
-        nb(n,i,k) = 5
-        nb(i,1,k) = 5
-        nb(i,n,k) = 5
-      end do
-
-      nb(1,1,k) = 3
-      nb(1,n,k) = 3
-      nb(n,1,k) = 3
-      nb(n,n,k) = 3
-
-      do i = 1,n
-        do j = 1,n
-          nbinv(i,j,k) = 1.d0/nb(i,j,k)
-        end do
+  !Create s2 by adding boundary of zeros to s
+    do i4 = 2,n+1
+      do i5 = 2,n+1
+        s2(i4,i5,k) = s(i4-1,i5-1,k) !Look at PARALLELIZATION for this
       end do
     end do
-    !$OMP end parallel do
-
-    call random_number(r)
-
-    !Set up coefficients for fitness calculation in matrix, a
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          a(i,j,k) = 1
-        end do
-      end do
-
-      do i = 1,n
-        do j = 1,n
-          if(s(i,j,k)==0) then
-            a(i,j,k) = tr_b
-          end if
-        end do
+  !Count number of C neighbours for each point
+    do i1 = 1,n
+      do i2 = 1,n
+          nc(i1,i2,k) = s2(i1,i2,k) + s2(i1,i2+1,k) + s2(i1,i2+2,k) + &
+                          s2(i1+1,i2,k)              + s2(i1+1,i2+2,k) + &
+                          s2(i1+2,i2,k) + s2(i1+2,i2+1,k) + s2(i1+2,i2+2,k)
+                          !s2 needs to be global
       end do
     end do
-    !$OMP end parallel do
+  !Calculate fitness matrix, f----
+  !We will have to use reduction
 
-    !Create s2 by adding boundary of zeros to s
-
-    !$OMP parallel do
-    do k =1,m
-      do i = 2,n+1
-        do j = 2,n+1
-          s2(i,j,k) = s(i-1,j-1,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+        f(i1,i2,k) = nc(i1,i2,k)*a(i1,i2,k)
+        if (s(i1,i2,k)==0) then
+          f(i1,i2,k) = f(i1,i2,k) + (nb(i1,i2,k)-nc(i1,i2,k))*tr_e
+        end if
       end do
     end do
-    !$OMP end parallel do
 
-    !Count number of C neighbours for each point
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          nc(i,j,k) = s2(i,j,k)   + s2(i,j+1,k)   + s2(i,j+2,k)   + &
-                      s2(i+1,j,k)                 + s2(i+1,j+2,k) + &
-                      s2(i+2,j,k) + s2(i+2,j+1,k) + s2(i+2,j+2,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+          f(i1,i2,k) = f(i1,i2,k)*nbinv(i1,i2,k)
       end do
     end do
-    !$OMP end parallel do
 
-    !Calculate fitness matrix, f
-    
 
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          f(i,j,k) = nc(i,j,k)*a(i,j,k)
-        end do
+  !------------------------------
+  !Calculate probability matrix, p----
+    do i4 = 2,n+1
+      do i5 = 2,n+1
+        f2(i4,i5,k) = f(i4-1,i5-1,k)
       end do
     end do
-    !$OMP end parallel do
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          if (s(i,j,k)==0) then
-            f(i,j,k) = f(i,j,k) + (nb(i,j,k)-nc(i,j,k))*tr_e
-          end if
-        end do
+    do i8 = 1,n+2
+      do i9 = 1,n+2
+        f2s2(i8,i9,k) = f2(i8,i9,k)*s2(i8,i9,k)
       end do
     end do
-    !$OMP end parallel do
 
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          f(i,j,k) = f(i,j,k)*nbinv(i,j,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+          p(i1,i2,k) = f2s2(i1,i2,k) + f2s2(i1,i2+1,k) + f2s2(i1,i2+2,k) + &
+                      f2s2(i1+1,i2,k) + f2s2(i1+1,i2+1,k) + f2s2(i1+1,i2+2,k) + &
+                      f2s2(i1+2,i2,k) + f2s2(i1+2,i2+1,k) + f2s2(i1+2,i2+2,k)
       end do
     end do
-    !$OMP end parallel do
 
-    !Calculate probability matrix, p
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 2,n+1
-        do j = 2,n+1
-          f2(i,j,k) = f(i-1,j-1,k)
-        end do
+  !Total fitness of all members of community
+    do i1 = 1,n
+      do i2 = 1,n
+          pden(i1,i2,k) = f2(i1,i2,k) + f2(i1,i2+1,k) + f2(i1,i2+2,k) + &
+                          f2(i1+1,i2,k) + f2(i1+1,i2+1,k) + f2(i1+1,i2+2,k) + &
+                          f2(i1+2,i2,k) + f2(i1+2,i2+1,k) + f2(i1+2,i2+2,k)
       end do
     end do
-    !$OMP end parallel do
 
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n+2
-        do j = 1,n+2
-          f2s2(i,j,k) = f2(i,j,k)*s2(i,j,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+        p(i1,i2,k) = (p(i1,i2,k)/pden(i1,i2,k))*tr_g + 0.5d0*(1.d0-tr_g) !probability matrix
       end do
     end do
-    !$OMP end parallel do
 
-    !Total fitness of cooperators in community
+  !--------------------------
+  !Set new affiliations based om probability matrix and random numbers stored in R
 
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          p(i,j,k) = f2s2(i,j,k)   + f2s2(i,j+1,k)   + f2s2(i,j+2,k)   + &
-                     f2s2(i+1,j,k) + f2s2(i+1,j+1,k) + f2s2(i+1,j+2,k) + &
-                     f2s2(i+2,j,k) + f2s2(i+2,j+1,k) + f2s2(i+2,j+2,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+        s(i1,i2,k) = 0
+        if (R(i1,i2,k)<=p(i1,i2,k)) then
+          s(i1,i2,k) = 1
+        end if
       end do
     end do
-    !$OMP end parallel do
-
-    !Total fitness of all members of community
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          pden(i,j,k) = f2(i,j,k)   + f2(i,j+1,k)   + f2(i,j+2,k)   + &
-                        f2(i+1,j,k) + f2(i+1,j+1,k) + f2(i+1,j+2,k) + &
-                        f2(i+2,j,k) + f2(i+2,j+1,k) + f2(i+2,j+2,k)
-        end do
+    do i1 = 1,n
+      do i2 = 1,n
+        fc_ave(i3+1) = fc_ave(i3+1) + s(i1,i2,k)*(n2inv/m)
       end do
     end do
-    !$OMP end parallel do
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          p(i,j,k) = (p(i,j,k)/pden(i,j,k))*tr_g + 0.5d0*(1.d0-tr_g) !probability matrix
-        end do
-      end do
-    end do
-    !$OMP end parallel do
-
-    !Set new affiliations based om probability matrix and random numbers stored in R
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          s(i,j,k) = 0
-        end do
-      end do
-    end do
-    !$OMP end parallel do
-
-    !$OMP parallel do
-    do k = 1,m
-      do i = 1,n
-        do j = 1,n
-          if (R(i,j,k)<=p(i,j,k)) then
-            s(i,j,k) = 1
-          end if
-        end do
-      end do
-    end do
-    !$OMP end parallel do
-
-    fc_ave(t+1) = sum(s)*(n2inv/m)
-
   end do
-
-  deallocate(r)
+  !$OMP end parallel do
+end do
+call cpu_time(cpu_t2)
+print *, 'elapsed cpu time (seconds) =',cpu_t2-cpu_t1
+call system_clock(clock_t2,clock_rate)
+print *, 'elapsed wall time (seconds)= ', dble(clock_t2-clock_t1)/dble(clock_rate)
+deallocate(r)
 
 end subroutine simulate2_omp
-
 end module tribes

@@ -1,0 +1,10 @@
+We have to think of a version of the loop in which the outer loop is k = 1,m
+and the type loop is inside the first mentioned one.
+Now the reason the version we have now works fine is because what we do is we
+fix one time step and then we proceed to calculate all the k's and get the
+correct result.
+Now we will need to find a version of the cose where first fix k, say k = 1
+then go over all the time steps of that k. This means that we will do one
+simulation at a time. Hence we will have to change the way the code is.
+Hence from what I understand the fc_ave vector will have to be defined outside
+both main loops. 
