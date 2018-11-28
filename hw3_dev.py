@@ -8,6 +8,7 @@ Contains five functions:
     visualize: To be completed -- generate animation illustrating "interesting" tribal dynamics
 """
 import numpy as np
+import time
 import matplotlib.pyplot as plt
 from m1 import tribes as tr #assumes that hw3_dev.f90 has been compiled with: f2py --f90flags='-fopenmp' -c hw3_dev.f90 -m m1 -lgomp
 #May also use scipy and time modules as needed
@@ -106,14 +107,61 @@ def simulate2(N,Nt,b,e,g,m):
 #------------------
 
 
-def performance(input=(None),display=False):
+def performance(n,nt,b,e,g,numthreads):
     """Assess performance of simulate2, simulate2_f90, and simulate2_omp
     Modify the contents of the tuple, input, as needed
     When display is True, figures equivalent to those
     you are submitting should be displayed
     """
+    tr.tr_g = g
+    tr.tr_b = b
+    tr.tr_e = e
 
-    return None #Modify as needed
+    #We will start by analyzing the performance of simulate_omp by itself
+    m = np.linspace(0,1500,80)
+    m[0] = 1
+    l = len(m)
+    wall_time = np.zeros((numthreads,l),dtype=float)
+    wall_time1 = np.zeros((l),dtype=float)
+    wall_time2 = np.zeros((l),dtype=float)
+    su_time = np.zeros((numthreads,l),dtype=float)
+
+    for j in range(l):
+        for i in range(numthreads):
+            tr.numthreads = i+1
+            wall_time0 = time.time()
+            tr.simulate2_omp(n,nt,m[j])
+            wall_time[i,j] = time.time()-wall_time0
+    su_time[:,:] = wall_time[0,:]/wall_time[:,:]
+
+    for j in range(l):
+        print('M:  ',m[j])
+        for i in range(numthreads):
+            print('Number of threads', i+1,'wall_time is :',wall_time[i,j])
+            print('Number of threads', i+1,'speed up time is :',su_time[i,j])
+        print()
+
+    for j in range(l):
+        wall_time0 = time.time()
+        tr.simulate2_f90(n,nt,m[j])
+        wall_time1[j] = time.time()-wall_time0
+
+    for j in range(l):
+        wall_time0 = time.time()
+        simulate2(n,nt,b,e,g,int(m[j]))
+        wall_time2[j] = time.time()-wall_time0
+
+
+    for i in range(numthreads):
+        plt.hold(True)
+        plt.plot(m,wall_time1)
+        plt.plot(m,wall_time2)
+        plt.plot(m,wall_time[i,:])
+        plt.xlabel('M')
+        plt.ylabel('Time')
+
+
+    return None  #Modify as needed
 
 def analyze(input=(None),display=False):
     """Analyze influence of model parameter, g.
@@ -121,6 +169,8 @@ def analyze(input=(None),display=False):
     When display is True, figures equivalent to those
     you are submitting should be displayed
     """
+
+
 
     return None #Modify as needed
 

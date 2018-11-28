@@ -1,3 +1,5 @@
+!Anas Lasri Doukkali
+!CID: 01209387
 !M3C 2018 Homework 3
 !This module contains four module variables and two subroutines;
 !one of these routines must be developed for this assignment.
@@ -150,6 +152,29 @@ end subroutine simulate2_f90
 ! fc_ave: fraction of cooperators at each time step (including initial condition)
 ! averaged across the m trials
 subroutine simulate2_omp(n,nt,m,s,fc_ave)
+  !As asked by question one, I will now proceed to explain my approach to
+  !the parallelization of the simulate_f90 subroutine above.
+  !After carrefuly reading the question and analyzing the code we realize that the
+  !variable 'm' will be the variable subject to parallelization. However at first sight
+  !we also note that the loop concerning the year variable 'nt' will produce
+  !inneficiencies if left as the outside loop. We hence need to think of a way
+  !of having the 'm' loop outside, this way optimizing our problem as best possible
+  !The way to tackle the issue is as follows:
+  !We will first change 'r' to be two-dimensional instead of 3-dimensional as in
+  !the previous version of the code. This is so that we can reduce massively the
+  !storage space to be used in our machine and hence free more memory for our
+  !calculations.
+  !Secondly, now that we have the 'm' loop outside and that r is two-dimensional
+  !we can reuse 'r' in our calculations and hence reduce the dimension of all the
+  !variables used in the vectorization except the one we are considering as returns
+  !inside both loops, and hence, with the exception of 's' all the other variables
+  !will now also be two-dimensional. This is highly efficient and will allow us
+  !to have a much faster code with the parallelization.
+  !After having set the code as explained above I will proceed now to paralelize
+  !
+  !
+  !
+  !
   implicit none
   integer, intent(in) :: n,nt,m
   integer, intent(out), dimension(n,n,m) :: s
@@ -167,9 +192,7 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   real(kind=8) :: cpu_t1,cpu_t2,clock_time
 
   call system_clock(clock_t1)
-
   call cpu_time(cpu_t1)
-
   !$ call omp_set_num_threads(numthreads)
 
   allocate(r(n,n))
@@ -192,11 +215,8 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   nb(1,n) = 3
   nb(n,1) = 3
   nb(n,n) = 3
-
   nbinv = 1.d0/nb
-
-
-  !$OMP parallel do firstprivate(s2,f2),private(a,nc,f,f2s2,p,pden),reduction(+:fc)
+  !$OMP parallel do firstprivate(s2,f2),private(t,a,nc,f,f2s2,p,pden),reduction(+:fc)
   do k = 1,m
     do t = 1,nt
       call random_number(r)
@@ -226,14 +246,14 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
       f2s2 = f2*s2
 
       !Total fitness of cooperators in community
-      p = f2s2(1:n,1:n)   + f2s2(1:n,2:n+1)   + f2s2(1:n,3:n+2)   + &
-          f2s2(2:n+1,1:n) + f2s2(2:n+1,2:n+1) + f2s2(2:n+1,3:n+2) + &
-          f2s2(3:n+2,1:n) + f2s2(3:n+2,2:n+1) + f2s2(3:n+2,3:n+2)
+      p =    f2s2(1:n,1:n)   + f2s2(1:n,2:n+1)   + f2s2(1:n,3:n+2)   + &
+             f2s2(2:n+1,1:n) + f2s2(2:n+1,2:n+1) + f2s2(2:n+1,3:n+2) + &
+             f2s2(3:n+2,1:n) + f2s2(3:n+2,2:n+1) + f2s2(3:n+2,3:n+2)
 
       !Total fitness of all members of community
-      pden = f2(1:n,1:n)   + f2(1:n,2:n+1)   + f2(1:n,3:n+2)   + &
-             f2(2:n+1,1:n) + f2(2:n+1,2:n+1) + f2(2:n+1,3:n+2) + &
-             f2(3:n+2,1:n) + f2(3:n+2,2:n+1) + f2(3:n+2,3:n+2)
+      pden = f2(1:n,1:n)     + f2(1:n,2:n+1)     + f2(1:n,3:n+2)     + &
+             f2(2:n+1,1:n)   + f2(2:n+1,2:n+1)   + f2(2:n+1,3:n+2)   + &
+             f2(3:n+2,1:n)   + f2(3:n+2,2:n+1)   + f2(3:n+2,3:n+2)
 
       p = (p/pden)*tr_g + 0.5d0*(1.d0-tr_g)
 
@@ -243,11 +263,11 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
         s(:,:,k) = 1
       end where
 
-      fc(t+1) = sum(s(:,:,k))*n2inv
+      fc(t+1) = sum(s(:,:,k))
 
     end do
 
-    fc_ave = fc_ave + (fc/m)
+    fc_ave = fc_ave + (fc)*(n2inv/m)
 
   end do
 !$OMP end parallel do
@@ -255,6 +275,6 @@ call cpu_time(cpu_t2)
 print *, 'elapsed cpu time (seconds) =',cpu_t2-cpu_t1
 call system_clock(clock_t2,clock_rate)
 print *, 'elapsed wall time (seconds)= ', dble(clock_t2-clock_t1)/dble(clock_rate)
-
+deallocate(r)
 end subroutine simulate2_omp
 end module tribes
