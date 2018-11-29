@@ -278,8 +278,8 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   end do
 !$OMP end parallel do
 call cpu_time(cpu_t2)
-print *, 'elapsed cpu time (seconds) =',cpu_t2-cpu_t1
 call system_clock(clock_t2,clock_rate)
+print *, 'elapsed cpu time (seconds) =',cpu_t2-cpu_t1
 print *, 'elapsed wall time (seconds)= ', dble(clock_t2-clock_t1)/dble(clock_rate)
 deallocate(r)
 end subroutine simulate2_omp
