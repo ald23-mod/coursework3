@@ -170,11 +170,18 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !inside both loops, and hence, with the exception of 's' all the other variables
   !will now also be two-dimensional. This is highly efficient and will allow us
   !to have a much faster code with the parallelization.
-  !After having set the code as explained above I will proceed now to paralelize
-  !
-  !
-  !
-  !
+  !After having set the code as explained above I will proceed now to parallelize.
+  !This is done by first setting the number of threads with the command that was
+  !given in the lectures.
+  !We know open the parallel region by calling OMP with firstprivate, private, and
+  !a reduction as well. As these methods were called in lectures, firstprivates
+  !will be used for the variables that were defined before the parallel region and
+  !initiallized also. As for private, we pick the variable for which each thread
+  !will require an own copy of the variable. Lastly we notice that we need to use
+  !a 'plus' reduction for one of our variables given the way it was defined 'fc_ave'
+  !This function was tested using the edited version of the hw3_main.f90 that runs
+  !said function and provided the correct and expected results whether accuracy
+  !or performance-wise.
   implicit none
   integer, intent(in) :: n,nt,m
   integer, intent(out), dimension(n,n,m) :: s
@@ -190,11 +197,9 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !timing variables
   integer(kind=8) :: clock_t1,clock_t2,clock_rate
   real(kind=8) :: cpu_t1,cpu_t2,clock_time
-
   call system_clock(clock_t1)
   call cpu_time(cpu_t1)
   !$ call omp_set_num_threads(numthreads)
-
   allocate(r(n,n))
 
   s=1
@@ -218,6 +223,7 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   nbinv = 1.d0/nb
   !$OMP parallel do firstprivate(s2,f2),private(t,a,nc,f,f2s2,p,pden),reduction(+:fc)
   do k = 1,m
+
     do t = 1,nt
       call random_number(r)
       !Set up coefficients for fitness calculation in matrix, a
