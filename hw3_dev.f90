@@ -182,6 +182,8 @@ subroutine simulate2_omp(n,nt,m,s,fc_ave)
   !This function was tested using the edited version of the hw3_main.f90 that runs
   !said function and provided the correct and expected results whether accuracy
   !or performance-wise.
+  !You can also see I added the time clock controls to be able to track the
+  !performance of the codes.
   implicit none
   integer, intent(in) :: n,nt,m
   integer, intent(out), dimension(n,n,m) :: s

@@ -11,6 +11,7 @@ Contains five functions:
 import numpy as np
 import time
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 from m1 import tribes as tr #assumes that hw3_dev.f90 has been compiled with: f2py --f90flags='-fopenmp' -c hw3_dev.f90 -m m1 -lgomp
 #May also use scipy and time modules as needed
 
@@ -142,6 +143,9 @@ def performance(n,nt,b,e,g,numthreads):
     language. It is also interesting to note that this difference in speed will
     a lot of difference as 'M' gets bigger and for real life simulations of our
     code.
+    The code will print the wall time and the speed up proportion for analytical
+    purposes, if this is not desired, please comment it. I find it however really
+    useful for me
     """
     tr.tr_g = g
     tr.tr_b = b
@@ -156,19 +160,19 @@ def performance(n,nt,b,e,g,numthreads):
     wall_time2 = np.zeros((l),dtype=float)
     su_time = np.zeros((numthreads,l),dtype=float)
 
-    for j in range(l):
+    for k in range(l):
         for i in range(numthreads):
             tr.numthreads = i+1
             wall_time0 = time.time()
-            tr.simulate2_omp(n,nt,m[j])
-            wall_time[i,j] = time.time()-wall_time0
+            tr.simulate2_omp(n,nt,m[k])
+            wall_time[i,k] = time.time()-wall_time0
     su_time[:,:] = wall_time[0,:]/wall_time[:,:]
 
     for j in range(l):
-        print('M:  ',m[j])
+        print('M:  ',m[k])
         for i in range(numthreads):
-            print('Number of threads', i+1,'wall_time is :',wall_time[i,j])
-            print('Number of threads', i+1,'speed up time is :',su_time[i,j])
+            print('Number of threads', i+1,'wall_time is :',wall_time[i,k])
+            print('Number of threads', i+1,'speed up time is :',su_time[i,k])
         print()
 
     for j in range(l):
@@ -185,8 +189,6 @@ def performance(n,nt,b,e,g,numthreads):
 
     for i in range(numthreads):
         plt.hold(True)
-        #plt.plot(m,wall_time1)
-        #plt.plot(m,wall_time2)
         plt.plot(m,wall_time[i,:])
     plt.title('Anas Lasri, CID:01209387 \n number of simuations against speed')
     plt.xlabel('Number of simulations: M')
@@ -216,39 +218,92 @@ def analyze(n,nt,m,e):
     When display is True, figures equivalent to those
     you are submitting should be displayed
     """
-    tr.tr_e = e
+    """
+    In this function what we do is simply analyzing the new parameter gamma,
+    hence what I do is I select 3 values of b in my case these values are:
+    b=1.1,1.25,1.50 and with these b values I will utilize a for loop to plot
+    the proportion of collaborators in the grid ofr different values of gamma
+    The trend that we note is that as gamma increases the grid converges faster
+    to a state of majority mercenaries. It is clear that as I just mentioned
+    gamma ups the speed of convergence. The plots have legends to help us differentiate
+    between the different values being used.
+    """
+    tr.numthreads = 4  #number of threads of my comp
+    tr.tr_e = e    #0.01
     #What I will do is have 3 figures where I will plot one augmenting b and g
-    #in the 2nd I will augment b and decrease g and in the last I will decrease
-    #both
+
     lin_b = np.linspace(1.1,1.5,nt+1)
     lin_g = np.linspace(0.80,1.0,nt+1)
-    fc_ave = np.zeros((len(lin_b),len(lin_g)))
-    for tr.tr_b in enumerate(lin_b):
-        for tr.tr_g in enumerate(lin_g):
-            _,fc_ave[:,:] = tr.simulate2_omp(n,nt,m)
-    for i in range(nt):
+    fc_avec = np.zeros((len(lin_b),len(lin_g)),dtype=object)
+    for i in range(len(lin_b)):
+        tr.tr_b = lin_b[i]
+        for j in range(len(lin_g)):
+            tr.tr_g = lin_g[j]
+            _,fc_avec[i,j] = tr.simulate2_omp(n,nt,m)
+
+    plot_vec = np.linspace(0,nt,6)
+
+    for i in range(len(plot_vec)):
         plt.hold(True)
-        plt.plot(np.linspace(1,nt,nt+1),fc_ave[:,i])
+        plt.plot(np.linspace(0,nt,51),fc_avec[0,int(plot_vec[i-1])])
+    plt.title('Anas Lasri, CID:01209387 \n fc_ave against time plot with b = 1.1')
+    plt.xlabel('Number of years, Nt')
+    plt.ylabel('fc_ave')
+    plt.legend(('g=0.80', 'g=0.84', 'g=0.88','g=0.92','g=0.94','g=1'),loc='best')
+    plt.savefig('hw33.png', dpi=400)
+    plt.show()
+
+    for i in range(len(plot_vec)):
+        plt.hold(True)
+        plt.plot(np.linspace(0,nt,51),fc_avec[25,int(plot_vec[i-1])])
+    plt.title('Anas Lasri, CID:01209387 \n fc_ave against time plot with b = 1.25')
+    plt.xlabel('Number of years, Nt')
+    plt.ylabel('fc_ave')
+    plt.legend(('g=0.80', 'g=0.84', 'g=0.88','g=0.92','g=0.94','g=1'),loc='best')
+    plt.savefig('hw34.png', dpi=400)
+    plt.show()
+
+    for i in range(len(plot_vec)):
+        plt.hold(True)
+        plt.plot(np.linspace(0,nt,51),fc_avec[50,int(plot_vec[i-1])])
+    plt.hold(False)
+    plt.title('Anas Lasri, CID:01209387 \n fc_ave against time plot with b = 1.5')
+    plt.xlabel('Number of years, Nt')
+    plt.ylabel('fc_ave')
+    plt.legend(('g=0.80', 'g=0.84', 'g=0.88','g=0.92','g=0.94','g=1'),loc='best')
+    plt.savefig('hw35.png', dpi=400)
+    plt.show()
 
 
     return None #Modify as needed
 
 
 
-def visualize():
+def visualize(n,nt,m):
     """Generate an animation illustrating the evolution of
         villages during C vs M competition
     """
+    tr.numthreads = 4
+    tr.tr_b = 1.5
+    tr.tr_g = 1.0
+    tr.tr_e = 0.01
+    fig = plt.figure()
+    def updatefig(i):
+        s_vec,_ = tr.simulate2_omp(n,i,m)
+        S = s_vec[:,:,5]
+        im = plt.imshow(S, animated = True)
+        im.set_array(S)
+        return im,
+    ani = animation.FuncAnimation(fig, updatefig,frames=nt, repeat=False,blit=True)
+    writer = animation.writers['ffmpeg'](fps=30)
+    ani.save('hw3movie.mp4',writer=writer,dpi=100)
 
-    return None #Modify as needed
+    return ani
 
 
 if __name__ == '__main__':
     #Modify the code here so that it calls performance analyze and
     # generates the figures that you are submitting with your code
 
-    input_p = None
-    output_p = performance(input_p) #modify as needed
-
-    input_a = None
-    output_a = performance(input_a)
+    output_p = performance(21,50,1.1,0.01,0.95,4) #modify as needed
+    output_a = analyze(51,50,20,0.01)
